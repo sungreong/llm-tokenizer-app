@@ -1,0 +1,9 @@
+huggingface_hub==0.21.4
+ipython==8.17.2
+pandas==1.5.3
+python-dotenv==1.0.1
+rich==13.7.1
+streamlit==1.30.0
+torch==2.2.1
+transformers==4.39.1
+trl==0.8.5
