@@ -119,6 +119,22 @@ def hide_github_corner():
 hide_github_corner()
 
 
+# CSS를 이용하여 마지막 stActionButton 숨기기
+def hide_last_action_button():
+    hide_button_style = """
+    <style>
+    div[data-testid="stToolbarActions"] .stActionButton:last-child {
+        display: none !important;
+    }
+    </style>
+    """
+    st.markdown(hide_button_style, unsafe_allow_html=True)
+
+
+# 스타일 적용 함수 호출
+hide_last_action_button()
+
+
 def llm_tokenizer_app():
     st.set_page_config(page_title="LLM Tokenizer APP", layout="wide")
     set_large_label_font()
