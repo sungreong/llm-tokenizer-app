@@ -9,6 +9,7 @@ import os, sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 from utils.text_history import CustomTextHistory as TextHistory
 from utils.decoder import incremental_decode as TextDecoder
+from utils.huggingface_utils import repo_exists
 import streamlit.components.v1 as components
 import pandas as pd
 
@@ -25,6 +26,9 @@ def llm_tokenizer_model(tokenizer_selected_list):
         except Exception as e:
             st.error(f"[{tokenizer_name}] Tokenizer Load Error: {e}")
         else:
+            if tokenizer_name == "DWDMaiMai/tiktoken_cl100k_base":
+                tokenizer_name = "OpenAI/GPT3.5"
+
             tokenizer_dict[tokenizer_name] = tokenizer
     return tokenizer_dict
 
@@ -85,7 +89,8 @@ def llm_tokenizer_app():
     load_dotenv()
     if "hf_token" not in st.session_state:
         st.session_state["hf_token"] = os.getenv("hf_token", "")
-
+    if "tokenizer_names" not in st.session_state:
+        st.session_state["tokenizer_names"] = ""
     token_input = st.text_input(
         "Hugging Face Token",
         value=st.session_state.get("hf_token", ""),
@@ -102,19 +107,30 @@ def llm_tokenizer_app():
         st.write("Hugging Face Token Loaded.")
 
     tokenizer_names = st.text_input(
-        "Tokenizer Names",
-        value="",
+        "Tokenizer Names(, separated)",
+        value=st.session_state["tokenizer_names"],
         placeholder="Tokenizer Name (e.g., google/gemma-2b,google/gemma-7b)",
     )
+    st.session_state["tokenizer_names"] = tokenizer_names
     if not tokenizer_names:
         st.info("Please enter tokenizer name.")
         st.stop()
 
     with st.form(key="tokenizer_form"):
-        tokenizer_name_list = list(set(tokenizer_names.split(",") + ["OpenAI/GPT3.5"]))
+        tokenizer_name_list = list(set(tokenizer_names.split(",")))
+        # check tokenizer name and change tokenizer NAME List
+        checked_tokenizer_name_list = []
+        for idx, tokenizer_name in enumerate(tokenizer_name_list):
+            if repo_exists(tokenizer_name):
+                checked_tokenizer_name_list.append(tokenizer_name)
+            else:
+                st.warning(f"Tokenizer Name [{tokenizer_name}] is not exists.")
+        else:
+            st.session_state["tokenizer_names"] = ",".join(checked_tokenizer_name_list)
+        checked_tokenizer_name_list = checked_tokenizer_name_list + ["OpenAI/GPT3.5"]
         tokenizer_selected_list = st.multiselect(
             "Select Tokenizer",
-            tokenizer_name_list,
+            checked_tokenizer_name_list,
         )
         sample_text = st.text_area(
             "Sample Text",
@@ -164,54 +180,97 @@ def llm_tokenizer_app():
                             st.write(f"token vocab : {active_tokenizer.vocab_size}")
                             st.write(f"token type: {active_tokenizer.__class__.__name__}")
                             st.write(f"sample token count: {len(token_to_ids)}")
+                            tabs = st.tabs(
+                                [
+                                    f"Token Viewer(Visible)",
+                                    f"Token Viewer(Token)",
+                                    "Tokenized Text",
+                                    "Token to IDs",
+                                    "Info",
+                                ],
+                            )
                             import torch
 
-                            text_html = """
-                            <style>
-                            .custom-text {
-                                font-size: 30px;
-                            }
-                            </style>
-                            <p class='custom-text'>Token Viewer</p>
-                            """
-                            st.markdown(text_html, unsafe_allow_html=True)
-                            text_history = [
-                                TextHistory(q, qt, system=True)
-                                for q, qt in zip(sample_text, torch.LongTensor([token_to_ids]))
-                            ][0]
-                            text_history_html = text_history.show_tokens_detail(
-                                tokenizer=active_tokenizer,
-                                show_legend=False,
-                                to_html=True,
-                            )
-                            components.html(
-                                text_history_html,
-                                scrolling=True,
-                                height=500,
-                            )
-                            st.text_area(
-                                "Tokenized Text",
-                                value=active_tokenizer.convert_ids_to_tokens(token_to_ids),
-                                height=300,
-                                max_chars=None,
-                                key=f"{tokenizer_selected_possible_list[idx]}_tokenized_text",
-                            )
-                            st.text_area(
-                                "Token to IDs",
-                                value=token_to_ids,
-                                height=100,
-                                max_chars=None,
-                                key=f"{tokenizer_selected_possible_list[idx]}_token_to_ids",
-                            )
-                            token_sample_info[tokenizer_selected_possible_list[idx]]["unique_token_count"] = len(
-                                set(token_to_ids)
-                            )
-                            token_sample_info[tokenizer_selected_possible_list[idx]]["token_count"] = len(token_to_ids)
-                            st.write(f"unique token count: {len(set(token_to_ids))}, token count: {len(token_to_ids)}")
-                            st.write("Special Tokens")
-                            st.json(active_tokenizer.special_tokens_map, expanded=False)
-                            st.write("Tokenizer Chat Template")
-                            st.markdown(active_tokenizer.chat_template, unsafe_allow_html=True)
+                            with tabs[0]:
+                                text_html = """
+                                <style>
+                                .custom-text {
+                                    font-size: 30px;
+                                }
+                                </style>
+                                <p class='custom-text'>Token Viewer(Visible)</p>
+                                """
+                                st.markdown(text_html, unsafe_allow_html=True)
+                                text_history = [
+                                    TextHistory(q, qt, system=True)
+                                    for q, qt in zip(sample_text, torch.LongTensor([token_to_ids]))
+                                ][0]
+                                text_history_html = text_history.show_tokens_detail(
+                                    tokenizer=active_tokenizer,
+                                    show_legend=False,
+                                    to_html=True,
+                                    use_incremental_decode=True,
+                                )
+                                components.html(
+                                    text_history_html,
+                                    scrolling=True,
+                                    height=500,
+                                )
+                            with tabs[1]:
+                                text_html = """
+                                <style>
+                                .custom-text {
+                                    font-size: 30px;
+                                }
+                                </style>
+                                <p class='custom-text'>Token Viewer(Token)</p>
+                                """
+                                st.markdown(text_html, unsafe_allow_html=True)
+                                text_history = [
+                                    TextHistory(q, qt, system=True)
+                                    for q, qt in zip(sample_text, torch.LongTensor([token_to_ids]))
+                                ][0]
+                                text_history_html = text_history.show_tokens_detail(
+                                    tokenizer=active_tokenizer,
+                                    show_legend=False,
+                                    to_html=True,
+                                    use_incremental_decode=False,
+                                )
+                                components.html(
+                                    text_history_html,
+                                    scrolling=True,
+                                    height=500,
+                                )
+                            with tabs[2]:
+                                st.text_area(
+                                    "Tokenized Text",
+                                    value=active_tokenizer.convert_ids_to_tokens(token_to_ids),
+                                    height=300,
+                                    max_chars=None,
+                                    key=f"{tokenizer_selected_possible_list[idx]}_tokenized_text",
+                                )
+                            with tabs[3]:
+                                st.text_area(
+                                    "Token to IDs",
+                                    value=token_to_ids,
+                                    height=100,
+                                    max_chars=None,
+                                    key=f"{tokenizer_selected_possible_list[idx]}_token_to_ids",
+                                )
+                            with tabs[4]:
+                                token_sample_info[tokenizer_selected_possible_list[idx]]["unique_token_count"] = len(
+                                    set(token_to_ids)
+                                )
+                                token_sample_info[tokenizer_selected_possible_list[idx]]["token_count"] = len(
+                                    token_to_ids
+                                )
+                                st.write(
+                                    f"unique token count: {len(set(token_to_ids))}, token count: {len(token_to_ids)}"
+                                )
+                                st.write("Special Tokens")
+                                st.json(active_tokenizer.special_tokens_map, expanded=False)
+                                st.write("Tokenizer Chat Template")
+                                st.markdown(active_tokenizer.chat_template, unsafe_allow_html=True)
 
             else:
                 import pandas as pd

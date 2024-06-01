@@ -82,7 +82,7 @@ class CustomTextHistory(TextHistory):
         if show_legend:
             self.show_colour_legend()
 
-    def show_tokens_detail(self, tokenizer, show_legend=False, to_html=False):
+    def show_tokens_detail(self, tokenizer, show_legend=False, to_html=False, use_incremental_decode=False):
         """
         Print the history tokens with each unique token ID in a consistent color.
         """
@@ -93,13 +93,18 @@ class CustomTextHistory(TextHistory):
             html_content = "<p>"
         else:
             text = Text()
-        # encoded = tokenizer.encode(text)
 
-        decoded_strings = incremental_decode(tokenizer, self.tokens.tolist())
-        for i, (token_text, mask) in enumerate(zip(decoded_strings, self.token_masks)):
+        if use_incremental_decode:
+            strings = incremental_decode(tokenizer, self.tokens.tolist())
+        else:
+            strings = self.tokens
+        for i, (token_text, mask) in enumerate(zip(strings, self.token_masks)):
             token_id = self.tokens[i]
             color = self.get_color_for_token_id(token_id)
             # text.append(token_text, style=f"bold on {color}")
+            if use_incremental_decode == False:
+                token_text = tokenizer.convert_ids_to_tokens([token_id])[0]
+
             if to_html:
                 html_content += (
                     f'<span style="background-color:{color}; color:black; font-weight:bold;">{token_text}</span> '
