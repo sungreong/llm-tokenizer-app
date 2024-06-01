@@ -79,10 +79,48 @@ def display_versions():
     st.write(f"**Streamlit version:** `{st.__version__}`")
 
 
+def create_footer():
+    footer = """
+    <style>
+    .footer {
+        position: fixed;
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        background-color: #f1f1f1;
+        color: black;
+        text-align: center;
+        padding: 10px;
+        font-size: 16px;
+    }
+    </style>
+    <div class="footer">
+        <p>Developed with ❤️ by srlee | <a href="mailto:leesungreong@gmail.com">Contact</a> | <a href="https://data-newbie.tistory.com/">Website</a></p>
+    </div>
+    """
+    st.markdown(footer, unsafe_allow_html=True)
+
+
+def hide_github_corner():
+    st.markdown(
+        """
+        <style>
+        .css-1jc7ptx, .e1ewe7hr3, .viewerBadge_container__1QSob,
+        .styles_viewerBadge__1yB5_, .viewerBadge_link__1S137,
+        .viewerBadge_text__1JaDK {
+            display: none;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def llm_tokenizer_app():
     st.set_page_config(page_title="LLM Tokenizer APP", layout="wide")
     set_large_label_font()
-
+    hide_github_corner()
+    create_footer()
     display_header()
     display_info()
     display_versions()
