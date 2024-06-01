@@ -116,10 +116,12 @@ def hide_github_corner():
     )
 
 
+hide_github_corner()
+
+
 def llm_tokenizer_app():
     st.set_page_config(page_title="LLM Tokenizer APP", layout="wide")
     set_large_label_font()
-    hide_github_corner()
     create_footer()
     display_header()
     display_info()
