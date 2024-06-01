@@ -142,9 +142,10 @@ def llm_tokenizer_app():
                                 max_chars=None,
                                 key=f"{tokenizer_selected_possible_list[idx]}_tokenized_text",
                             )
+                            token_to_ids = token_to_ids.tolist()[0]
                             st.text_area(
                                 "Token to IDs",
-                                value=token_to_ids.tolist(),
+                                value=token_to_ids,
                                 height=100,
                                 max_chars=None,
                                 key=f"{tokenizer_selected_possible_list[idx]}_token_to_ids",
