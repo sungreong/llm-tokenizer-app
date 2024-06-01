@@ -1,5 +1,6 @@
 from trl.environment import TextHistory
 from trl.environment.base_environment import Text, is_rich_available, warnings
+from .decoder import incremental_decode
 
 if is_rich_available():
     from rich import print
@@ -92,10 +93,12 @@ class CustomTextHistory(TextHistory):
             html_content = "<p>"
         else:
             text = Text()
-        for i, (token, mask) in enumerate(zip(self.tokens, self.token_masks)):
-            token_id = token.item()  # Assuming token is a tensor and we are extracting the integer ID
+        # encoded = tokenizer.encode(text)
+
+        decoded_strings = incremental_decode(tokenizer, self.tokens.tolist())
+        for i, (token_text, mask) in enumerate(zip(decoded_strings, self.token_masks)):
+            token_id = self.tokens[i]
             color = self.get_color_for_token_id(token_id)
-            token_text = tokenizer.convert_ids_to_tokens(token_id)
             # text.append(token_text, style=f"bold on {color}")
             if to_html:
                 html_content += (

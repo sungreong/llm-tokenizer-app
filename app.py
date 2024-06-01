@@ -10,6 +10,7 @@ import os, sys
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 from utils.text_history import CustomTextHistory as TextHistory
+from utils.decoder import incremental_decode as TextDecoder
 import streamlit.components.v1 as components
 import pandas as pd
 
@@ -19,6 +20,8 @@ def llm_tokenizer_model(tokenizer_selected_list):
     tokenizer_dict = {}
     for tokenizer_name in tokenizer_selected_list:
         try:
+            if tokenizer_name == "OpenAI/GPT3.5":
+                tokenizer_name = "DWDMaiMai/tiktoken_cl100k_base"
             tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, token=st.session_state.get("hf_token", ""))
             # st.write("Tokenizer Loaded: {}".format(tokenizer_name))
         except Exception as e:
@@ -35,13 +38,17 @@ def llm_tokenizer_app():
     st.write("transformer version == {}".format(transformers.__version__))
     st.write("streamlit version == {}".format(st.__version__))
     load_dotenv()
+    if "hf_token" not in st.session_state:
+        st.session_state["hf_token"] = os.getenv("hf_token", "")
 
-    st.session_state["hf_token"] = st.text_input(
+    token_input = st.text_input(
         "Hugging Face Token",
         value=st.session_state.get("hf_token", ""),
         placeholder="Hugging Face Token (hf-xxx)",
         type="password",
     )
+    st.session_state["hf_token"] = token_input
+
     if not st.session_state["hf_token"]:
         st.write("Please enter Hugging Face token.")
         st.stop()
@@ -59,7 +66,7 @@ def llm_tokenizer_app():
         st.stop()
 
     with st.form(key="tokenizer_form"):
-        tokenizer_name_list = tokenizer_names.split(",")
+        tokenizer_name_list = list(set(tokenizer_names.split(",") + ["OpenAI/GPT3.5"]))
         tokenizer_selected_list = st.multiselect(
             "Select Tokenizer",
             tokenizer_name_list,
@@ -80,6 +87,7 @@ def llm_tokenizer_app():
             step=1,
             key="cols_per_row",
         )
+        add_special_tokens = st.checkbox("Add Special Tokens", value=True)
         submit_button = st.form_submit_button(label="Load Tokenizer")
 
     if submit_button:
@@ -87,7 +95,7 @@ def llm_tokenizer_app():
 
             with st.spinner("Loading Tokenizer..."):
                 llm_tokenizer_dict = llm_tokenizer_model(tokenizer_selected_list)
-            tokenizer_selected_possible_list = list(llm_tokenizer_dict.keys())
+            tokenizer_selected_possible_list = list(set(list(llm_tokenizer_dict.keys())))
             n = len(tokenizer_selected_possible_list)  # Total number of items in the list
             if n == 0:
                 st.write("No tokenizer loaded.")
@@ -96,6 +104,7 @@ def llm_tokenizer_app():
                 cols_per_row = n
             rows = (n + cols_per_row - 1) // cols_per_row  # Calculate the total number of rows needed
             token_sample_info = {}
+            st.info("Sample Text Length: {}".format(len(sample_text)) if sample_text else "No Sample Text Provided.")
             for i in range(rows):
                 cols = st.columns(cols_per_row)  # Create a new row of columns
                 for j in range(cols_per_row):
@@ -105,36 +114,11 @@ def llm_tokenizer_app():
                             st.subheader(tokenizer_selected_possible_list[idx])
                             token_sample_info[tokenizer_selected_possible_list[idx]] = {}
                             active_tokenizer = llm_tokenizer_dict[tokenizer_selected_possible_list[idx]]
-                            result = active_tokenizer.tokenize(sample_text)
+                            token_to_ids = active_tokenizer.encode(sample_text, add_special_tokens=add_special_tokens)
+                            toekn_ids_to_text = TextDecoder(active_tokenizer, token_to_ids)
                             st.write(f"token vocab : {active_tokenizer.vocab_size}")
                             st.write(f"token type: {active_tokenizer.__class__.__name__}")
-
-                            st.write(f"sample token count: {len(result)}")
-
-                            st.text_area(
-                                "Tokenized Text",
-                                value=result,
-                                height=300,
-                                max_chars=None,
-                                key=f"{tokenizer_selected_possible_list[idx]}_tokenized_text",
-                            )
-                            token_to_ids = active_tokenizer.convert_tokens_to_ids(result)
-                            st.text_area(
-                                "Token to IDs",
-                                value=token_to_ids,
-                                height=100,
-                                max_chars=None,
-                                key=f"{tokenizer_selected_possible_list[idx]}_token_to_ids",
-                            )
-                            token_sample_info[tokenizer_selected_possible_list[idx]]["unique_token_count"] = len(
-                                set(token_to_ids)
-                            )
-                            token_sample_info[tokenizer_selected_possible_list[idx]]["token_count"] = len(token_to_ids)
-                            st.write(f"unique token count: {len(set(token_to_ids))}")
-                            st.write("Special Tokens")
-                            st.json(active_tokenizer.special_tokens_map)
-                            st.write("Tokenizer Chat Template")
-                            st.markdown(active_tokenizer.chat_template)
+                            st.write(f"sample token count: {len(token_to_ids)}")
                             import torch
 
                             token_to_ids = torch.LongTensor([token_to_ids])
@@ -151,13 +135,37 @@ def llm_tokenizer_app():
                                 scrolling=True,
                                 height=500,
                             )
+                            st.text_area(
+                                "Tokenized Text",
+                                value=toekn_ids_to_text,
+                                height=300,
+                                max_chars=None,
+                                key=f"{tokenizer_selected_possible_list[idx]}_tokenized_text",
+                            )
+                            st.text_area(
+                                "Token to IDs",
+                                value=token_to_ids.tolist(),
+                                height=100,
+                                max_chars=None,
+                                key=f"{tokenizer_selected_possible_list[idx]}_token_to_ids",
+                            )
+                            token_sample_info[tokenizer_selected_possible_list[idx]]["unique_token_count"] = len(
+                                set(token_to_ids)
+                            )
+                            token_sample_info[tokenizer_selected_possible_list[idx]]["token_count"] = len(token_to_ids)
+                            st.write(f"unique token count: {len(set(token_to_ids))}, token count: {len(token_to_ids)}")
+                            st.write("Special Tokens")
+                            st.json(active_tokenizer.special_tokens_map, expanded=False)
+                            st.write("Tokenizer Chat Template")
+                            st.markdown(active_tokenizer.chat_template, unsafe_allow_html=True)
+
             else:
                 import pandas as pd
 
                 token_count_df = pd.DataFrame(token_sample_info).T
-                _, center_col, _ = st.columns([3, 6, 3])
+                _, center_col, _ = st.columns([1, 8, 1])
                 with center_col:
-                    st.dataframe(token_count_df, width=1000)
+                    st.dataframe(token_count_df, width=1000, use_container_width=True)
         else:
             st.write("Please select tokenizer name.")
             st.stop()
