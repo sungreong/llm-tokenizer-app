@@ -3,8 +3,6 @@ from dotenv import load_dotenv
 from transformers import AutoTokenizer
 import streamlit as st
 
-st.set_page_config(layout="wide")
-
 from huggingface_hub import login
 import os, sys
 
@@ -31,12 +29,59 @@ def llm_tokenizer_model(tokenizer_selected_list):
     return tokenizer_dict
 
 
-def llm_tokenizer_app():
+def set_large_label_font():
+    style = """
+    <style>
+    div[class*="stTextArea"] p {
+    font-size: 30px
+    }
+
+    div[class*="stTextInput"] p {
+    font-size: 30px
+    }
+
+    div[class*="stNumberInput"] p {
+    font-size: 30px
+    }
+    div[class*="stMultiSelect"] p {
+    font-size: 30px
+    }
+    </style>
+    """
+    st.markdown(style, unsafe_allow_html=True)
+
+
+def display_header():
     st.title("LLM Tokenizer")
-    st.write("This app is for tokenizing text using LLMs.")
-    st.write("You can also use any tokenizer from Hugging Face's model hub.")
-    st.write("transformer version == {}".format(transformers.__version__))
-    st.write("streamlit version == {}".format(st.__version__))
+    st.markdown(
+        """
+    This app is designed for tokenizing text using various Language Model tokenizers available on the Hugging Face model hub.
+    """
+    )
+
+
+def display_info():
+    st.info(
+        """
+    🔍 You can try out different tokenizers from the Hugging Face model hub to see how they tokenize different texts.
+    """
+    )
+    st.link_button("Go to Hugging Face", "https://huggingface.co/")
+
+
+def display_versions():
+    st.subheader("Environment Versions")
+    st.write(f"**Transformer version:** `{transformers.__version__}`")
+    st.write(f"**Streamlit version:** `{st.__version__}`")
+
+
+def llm_tokenizer_app():
+    st.set_page_config(page_title="LLM Tokenizer APP", layout="wide")
+    set_large_label_font()
+
+    display_header()
+    display_info()
+    display_versions()
     load_dotenv()
     if "hf_token" not in st.session_state:
         st.session_state["hf_token"] = os.getenv("hf_token", "")
@@ -57,12 +102,12 @@ def llm_tokenizer_app():
         st.write("Hugging Face Token Loaded.")
 
     tokenizer_names = st.text_input(
-        "Tokenizer Name",
+        "Tokenizer Names",
         value="",
         placeholder="Tokenizer Name (e.g., google/gemma-2b,google/gemma-7b)",
     )
     if not tokenizer_names:
-        st.write("Please enter tokenizer name.")
+        st.info("Please enter tokenizer name.")
         st.stop()
 
     with st.form(key="tokenizer_form"):
@@ -79,6 +124,7 @@ def llm_tokenizer_app():
             key=None,
             help="Sample Text",
         )
+        add_special_tokens = st.checkbox("Add Special Tokens", value=True)
         cols_per_row = st.number_input(
             "Columns per Row",
             min_value=2,
@@ -87,9 +133,7 @@ def llm_tokenizer_app():
             step=1,
             key="cols_per_row",
         )
-        add_special_tokens = st.checkbox("Add Special Tokens", value=True)
-        submit_button = st.form_submit_button(label="Load Tokenizer")
-
+        submit_button = st.form_submit_button(label="Load Tokenizer", type="primary")
     if submit_button:
         if len(tokenizer_selected_list) > 0:
 
@@ -115,15 +159,25 @@ def llm_tokenizer_app():
                             token_sample_info[tokenizer_selected_possible_list[idx]] = {}
                             active_tokenizer = llm_tokenizer_dict[tokenizer_selected_possible_list[idx]]
                             token_to_ids = active_tokenizer.encode(sample_text, add_special_tokens=add_special_tokens)
-                            toekn_ids_to_text = TextDecoder(active_tokenizer, token_to_ids)
+
+                            # token_ids_to_text = TextDecoder(active_tokenizer, token_to_ids)
                             st.write(f"token vocab : {active_tokenizer.vocab_size}")
                             st.write(f"token type: {active_tokenizer.__class__.__name__}")
                             st.write(f"sample token count: {len(token_to_ids)}")
                             import torch
 
-                            token_to_ids = torch.LongTensor([token_to_ids])
+                            text_html = """
+                            <style>
+                            .custom-text {
+                                font-size: 30px;
+                            }
+                            </style>
+                            <p class='custom-text'>Token Viewer</p>
+                            """
+                            st.markdown(text_html, unsafe_allow_html=True)
                             text_history = [
-                                TextHistory(q, qt, system=True) for q, qt in zip(sample_text, token_to_ids)
+                                TextHistory(q, qt, system=True)
+                                for q, qt in zip(sample_text, torch.LongTensor([token_to_ids]))
                             ][0]
                             text_history_html = text_history.show_tokens_detail(
                                 tokenizer=active_tokenizer,
@@ -137,12 +191,11 @@ def llm_tokenizer_app():
                             )
                             st.text_area(
                                 "Tokenized Text",
-                                value=toekn_ids_to_text,
+                                value=active_tokenizer.convert_ids_to_tokens(token_to_ids),
                                 height=300,
                                 max_chars=None,
                                 key=f"{tokenizer_selected_possible_list[idx]}_tokenized_text",
                             )
-                            token_to_ids = token_to_ids.tolist()[0]
                             st.text_area(
                                 "Token to IDs",
                                 value=token_to_ids,
@@ -168,7 +221,7 @@ def llm_tokenizer_app():
                 with center_col:
                     st.dataframe(token_count_df, width=1000, use_container_width=True)
         else:
-            st.write("Please select tokenizer name.")
+            st.info("Please select tokenizer name.")
             st.stop()
 
 
