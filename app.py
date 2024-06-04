@@ -175,10 +175,11 @@ def llm_tokenizer_app():
         # check tokenizer name and change tokenizer NAME List
         checked_tokenizer_name_list = []
         for idx, tokenizer_name in enumerate(tokenizer_name_list):
-            if repo_exists(tokenizer_name):
-                checked_tokenizer_name_list.append(tokenizer_name)
-            else:
-                st.warning(f"Tokenizer Name [{tokenizer_name}] is not exists.")
+            # if repo_exists(tokenizer_name):
+            #     checked_tokenizer_name_list.append(tokenizer_name)
+            # else:
+            #     st.warning(f"Tokenizer Name [{tokenizer_name}] is not exists.")
+            checked_tokenizer_name_list.append(tokenizer_name)
         else:
             st.session_state["tokenizer_names"] = ",".join(checked_tokenizer_name_list)
         checked_tokenizer_name_list = checked_tokenizer_name_list + ["OpenAI/GPT3.5"]
